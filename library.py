@@ -1,8 +1,25 @@
+import jaydebeapi
+
+try:
+
+    conn = jaydebeapi.connect(
+        "org.postgresql.Driver",
+        "jdbc:postgresql://localhost:5432/LibraryManagement",
+        {"user": "postgres", "password": "postgres"},
+        "C:/Program Files/PostgreSQL/16/postgresql-42.7.2.jar",
+    )
+    conn.jconn.setAutoCommit(False)
+    cursor = conn.cursor()
+    print("Connessione effettuata")
+except Exception as e:
+    print("Errore durante la connessione al database:", e)
+
+
 class Libro:
-    def __init__(self, codice_libro=None, titolo=None, n_copie=None):
+    def __init__(self, codice_libro=None, titolo=None, numero_copie=None):
         self.codice_libro = codice_libro
         self.titolo = titolo
-        self.n_copie = n_copie
+        self.numero_copie = numero_copie
 
 
 class Autore:
@@ -66,3 +83,33 @@ class Edizione:
         self.isbn = isbn
         self.anno_stampa = anno_stampa
         self.edizione = edizione
+
+
+def insert_book():
+    try:
+        add_book_query = ("INSERT INTO libro(codice_libro, titolo, numero_copie)"
+                          "VALUES (?,?,?)")
+        values_to_add = ("06", "1984", 2)
+        cursor.execute(add_book_query, values_to_add)
+        conn.commit()
+        print("Valore Inserito")
+    except (Exception, jaydebeapi.Error) as error:
+        print("Errore durante l'inserimento del record:", error)
+
+
+insert_book()
+
+
+def update_book():
+    try:
+        add_book_query = ("INSERT INTO libro(codice_libro, titolo, numero_copie)"
+                          "VALUES (?,?,?)")
+        values_to_add = ("06", "1984", 2)
+        cursor.execute(add_book_query, values_to_add)
+        conn.commit()
+        print("Valore Inserito")
+    except (Exception, jaydebeapi.Error) as error:
+        print("Errore durante l'inserimento del record:", error)
+
+
+update_book()
