@@ -105,11 +105,22 @@ def inserisci_libro():
     try:
         query_inserisci_libro = ("INSERT INTO libro (titolo, numero_copie) "
                                  "VALUES (?, ?) RETURNING codice_libro")
-        input_dati = input("Inserisci i dati del libro: \n")
+        input_dati = input("Inserisci i dati del libro: titolo, numero di copie\n")
         titolo, numero_copie = input_dati.split(',')
         cursor.execute(query_inserisci_libro, (
             titolo.strip(), int(numero_copie.strip())))
         codice_libro = cursor.fetchone()[0]
+
+        print("Associa ora il libro all'autore.\n Inserisci il nome e il cognome, uno alla volta.\n")
+        nome = input("Nome: ")
+        cognome = input("Cognome: ")
+
+        query_codice_autore = ("SELECT codice_autore FROM autore WHERE nome = ? AND cognome = ?")
+        cursor.execute(query_codice_autore, (nome.strip(), cognome.strip()))
+        codice_autore = cursor.fetchone()[0]
+
+        query_associa_libro_autore = ("INSERT INTO scrittura (codice_libro, codice_autore) VALUES (?, ?)")
+        cursor.execute(query_associa_libro_autore, (codice_libro, codice_autore))
         conn.commit()
         print("Valore Inserito")
     except (Exception, jaydebeapi.Error) as error:
