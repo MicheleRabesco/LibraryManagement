@@ -89,9 +89,11 @@ def inserisci_autore():
     try:
         query_inserisci_autore = ("INSERT INTO autore (nome, cognome, data_nascita, data_morte)"
                                   "VALUES (?, ?, ?, ?)")
-        input_dati = input("Inserisci i dati dell'autore: le date devono essere in formato dd/mm/yyyy\n")
-        nome_autore, cognome_autore, data_nascita_autore, data_morte_autore = input_dati.split(
-            ',')
+        print("Inserisci i dati dell'autore: le date devono essere in formato dd/mm/yyyy\n")
+        nome_autore = input("Nome: ")
+        cognome_autore = input("Cognome: ")
+        data_nascita_autore = input("Data di nascita: ")
+        data_morte_autore = input("Data di morte: ")
         cursor.execute(query_inserisci_autore, (
             nome_autore.strip(), cognome_autore.strip(), data_nascita_autore.strip(),
             data_morte_autore.strip()))
@@ -105,9 +107,10 @@ def inserisci_libro():
     try:
         query_inserisci_libro = ("INSERT INTO libro (titolo, numero_copie) "
                                  "VALUES (?, ?) RETURNING codice_libro")
-        input_dati = input("Inserisci i dati del libro: titolo, numero di copie\n")
-        titolo, numero_copie = input_dati.split(',')
-        cursor.execute(query_inserisci_libro, (
+        print("Inserisci i dati del libro: titolo, numero di copie\n")
+        titolo = input("Titolo: ")
+        numero_copie = input(int("Numero di copie: "))  #il numero di copie inserito qui non risulta nella tabella copie
+        cursor.execute(query_inserisci_libro, (         #controllare ora che la foreign key è stata aggiunta
             titolo.strip(), int(numero_copie.strip())))
         codice_libro = cursor.fetchone()[0]
 
@@ -138,11 +141,11 @@ def inserisci_copia():
         # ogni copia è differente
         query_inserisci_copia = ("INSERT INTO copia (stato, isbn, codice_libro) "
                                  "VALUES (?, ?, ?)")
-        input_dati = input("Inserisci i dati della copia: \n")
-        stato, isbn = input_dati.split(',')
+        print("Inserisci i dati della copia\n")
+        stato = input("Stato: ")
+        isbn = input("ISBN: ")
         cursor.execute(query_inserisci_copia, (
             stato.strip(), isbn.strip(), codice_libro))
-
         query_aggiornamento_copie = "UPDATE libro SET numero_copie = numero_copie +1 WHERE codice_libro = ?"
         cursor.execute(query_aggiornamento_copie, (codice_libro,))
         conn.commit()
@@ -150,6 +153,39 @@ def inserisci_copia():
     except (Exception, jaydebeapi.Error) as error:
         print("Errore durante l'inserimento del record:", error)
 
+
+# codice_utente=None, codice_catalogazione=None,
+#                  data_prestito=None, data_restituzione=None, durata_prestito=None
+
+def inserisci_prestito():
+    try:
+
+        # SELECT dell'utente con nome e cognome, SELECT della copia con ISBN, calcolo durata prestito
+
+        query_inserimento_prestito = ("INSERT INTO prestito (codice_utente, codice_catalogazione, data_prestito, "
+                                      "data_restituzione, durata_prestito) VALUES (?, ?, ?, ?, ?)")
+    except (Exception, jaydebeapi.Error) as error:
+        print("Errore durante l'inserimento del record:", error)
+
+
+def inserisci_genere():
+    try:
+        query_inserisci_genere = ("INSERT INTO genere (codice_genere, nome_genere) VALUES (?, ?)")
+        nome_genere = input("Inserisci il nome del genere:")
+        cursor.execute(query_inserisci_genere, (nome_genere))
+        codice_genere = cursor.fetchone()[0] #se dovesse servire
+
+    except (Exception, jaydebeapi.Error) as error:
+        print("Errore durante l'inserimento del record:", error)
+
+
+def definisci_appartenenza_genere():
+    try:
+        #i campi sono codice_genere e codice_autore, all'utente vengono chiesti nome del genere e dell'autore nome, cognome e in caso di duplicato anche
+
+
+    except (Exception, jaydebeapi.Error) as error:
+        print("Errore durante l'inserimento del record:", error)
 
 def main():
     while True:
