@@ -16,15 +16,15 @@ except Exception as e:
 
 
 class Libro:
-    def __init__(self, codice_libro=None, titolo=None, numero_copie=None):
+    def __init__(self, codice_libro, titolo, numero_copie):
         self.codice_libro = codice_libro
         self.titolo = titolo
         self.numero_copie = numero_copie
 
 
 class Autore:
-    def __init__(self, codice_autore=None, nome=None, cognome=None,
-                 data_nascita=None, data_morte=None):
+    def __init__(self, codice_autore, nome, cognome,
+                 data_nascita, data_morte=None):
         self.codice_autore = codice_autore
         self.nome = nome
         self.cognome = cognome
@@ -33,7 +33,7 @@ class Autore:
 
 
 class Copia:
-    def __init__(self, codice_catalogazione=None, stato=None, isbn=None, codice_libro=None):
+    def __init__(self, codice_catalogazione, stato, isbn, codice_libro):
         self.codice_catalogazione = codice_catalogazione
         self.stato = stato
         self.isbn = isbn
@@ -41,9 +41,9 @@ class Copia:
 
 
 class Utente:
-    def __init__(self, matricola=None, nome=None, cognome=None,
+    def __init__(self, codice_utente=None, nome=None, cognome=None,
                  data_nascita=None, data_iscrizione=None):
-        self.matricola = matricola
+        self.codice_utente = codice_utente
         self.nome = nome
         self.cognome = cognome
         self.data_nascita = data_nascita
@@ -51,9 +51,9 @@ class Utente:
 
 
 class Prestito:
-    def __init__(self, matricola=None, codice_catalogazione=None,
+    def __init__(self, codice_utente=None, codice_catalogazione=None,
                  data_prestito=None, data_restituzione=None, durata_prestito=None):
-        self.matricola = matricola
+        self.codice_utente = codice_utente
         self.codice_catalogazione = codice_catalogazione
         self.data_prestito = data_prestito
         self.data_restituzione = data_restituzione
@@ -85,31 +85,77 @@ class Edizione:
         self.edizione = edizione
 
 
-def insert_book():
+def inserisci_autore():
     try:
-        add_book_query = ("INSERT INTO libro(codice_libro, titolo, numero_copie)"
-                          "VALUES (?,?,?)")
-        values_to_add = ("06", "1984", 2)
-        cursor.execute(add_book_query, values_to_add)
+        query_inserisci_autore = ("INSERT INTO autore (nome, cognome, data_nascita, data_morte)"
+                                  "VALUES (?, ?, ?, ?)")
+        input_dati = input("Inserisci i dati dell'autore: le date devono essere in formato dd/mm/yyyy\n")
+        nome_autore, cognome_autore, data_nascita_autore, data_morte_autore = input_dati.split(
+            ',')
+        cursor.execute(query_inserisci_autore, (
+            nome_autore.strip(), cognome_autore.strip(), data_nascita_autore.strip(),
+            data_morte_autore.strip()))
         conn.commit()
         print("Valore Inserito")
     except (Exception, jaydebeapi.Error) as error:
         print("Errore durante l'inserimento del record:", error)
 
 
-insert_book()
-
-
-def update_book():
+def inserisci_libro():
     try:
-        add_book_query = ("INSERT INTO libro(codice_libro, titolo, numero_copie)"
-                          "VALUES (?,?,?)")
-        values_to_add = ("06", "1984", 2)
-        cursor.execute(add_book_query, values_to_add)
+        query_inserisci_libro = ("INSERT INTO libro (titolo, numero_copie) "
+                                 "VALUES (?, ?) RETURNING codice_libro")
+        input_dati = input("Inserisci i dati del libro: \n")
+        titolo, numero_copie = input_dati.split(',')
+        cursor.execute(query_inserisci_libro, (
+            titolo.strip(), int(numero_copie.strip())))
+        codice_libro = cursor.fetchone()[0]
+        conn.commit()
+        print("Valore Inserito")
+    except (Exception, jaydebeapi.Error) as error:
+        print("Errore durante l'inserimento del record:", error)
+    return codice_libro
+
+
+def inserisci_copia():
+    try:
+        query_codice_libro = "SELECT codice_libro FROM libro WHERE titolo = ?"
+        titolo_libro = input("Inserisci il titolo del libro di cui vuoi aggiungere una copia:\n")
+        cursor.execute(query_codice_libro, (titolo_libro,))
+        codice_libro = cursor.fetchone()[0]
+
+        # ogni copia è differente
+        query_inserisci_copia = ("INSERT INTO copia (stato, isbn, codice_libro) "
+                                 "VALUES (?, ?, ?)")
+        input_dati = input("Inserisci i dati della copia: \n")
+        stato, isbn = input_dati.split(',')
+        cursor.execute(query_inserisci_copia, (
+            stato.strip(), isbn.strip(), codice_libro))
+
+        query_aggiornamento_copie = "UPDATE libro SET numero_copie = numero_copie +1 WHERE codice_libro = ?"
+        cursor.execute(query_aggiornamento_copie, (codice_libro,))
         conn.commit()
         print("Valore Inserito")
     except (Exception, jaydebeapi.Error) as error:
         print("Errore durante l'inserimento del record:", error)
 
 
-update_book()
+def main():
+    while True:
+        prompt = input("Che azione vuoi eseguire?\nDigita 1 per inserire un autore, 2 un libro, 3 una copia, "
+                       "0 per uscire\n")
+
+        if prompt == '1':
+            inserisci_autore()
+        elif prompt == '2':
+            inserisci_libro()
+        elif prompt == '3':
+            inserisci_copia()
+        elif prompt == '0':
+            exit(0)
+        else:
+            print("Non valido")
+
+
+if __name__ == "__main__":
+    main()
