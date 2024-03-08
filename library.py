@@ -42,7 +42,7 @@ class Copia:
 
 
 class Utente:
-    def __init__(self, codice_utente=None, nome=None, cognome=None,
+    def __init__(self, codice_utente, nome=None, cognome=None,
                  data_nascita=None, data_iscrizione=None):
         self.codice_utente = codice_utente
         self.nome = nome
@@ -52,13 +52,14 @@ class Utente:
 
 
 class Prestito:
-    def __init__(self, codice_utente=None, codice_catalogazione=None,
-                 data_prestito=None, data_restituzione=None, durata_prestito=None):
+    def __init__(self, codice_prestito, codice_utente, codice_catalogazione,
+                 data_prestito, data_restituzione=None, durata_prestito=None):
         self.codice_utente = codice_utente
         self.codice_catalogazione = codice_catalogazione
         self.data_prestito = data_prestito
         self.data_restituzione = data_restituzione
         self.durata_prestito = durata_prestito
+        self.codice_prestito = codice_prestito
 
 
 class Genere:
@@ -115,11 +116,11 @@ def inserisci_libro():
             titolo.strip(), int(numero_copie.strip())))
         codice_libro = cursor.fetchone()[0]
 
-        query_associa_libro_autore = ("INSERT INTO scrittura (codice_libro, codice_autore) VALUES (?, ?)")
+        query_associa_libro_autore = "INSERT INTO scrittura (codice_libro, codice_autore) VALUES (?, ?)"
         print("Associa ora il libro all'autore.\n Inserisci il nome e il cognome, uno alla volta.\n")
         nome = input("Nome: ")
         cognome = input("Cognome: ")
-        query_codice_autore = ("SELECT codice_autore FROM autore WHERE nome = ? AND cognome = ?")
+        query_codice_autore = "SELECT codice_autore FROM autore WHERE nome = ? AND cognome = ?"
 
         cursor.execute(query_codice_autore, (nome, cognome))
         codice_autore = cursor.fetchone()[0]
@@ -161,14 +162,12 @@ def inserisci_utente():
         print("Inserisci i dati anagrafici dell'utente\n")
         nome = input("Nome:\n")
         cognome = input("Cognome:\n")
-        data_nascita = input("Data di nascita nel formato dd/mm/yyyy:\n")
-        data_iscrizione = input("Data di iscrizione nel formato dd/mm/yyyy:\n")
+        data_nascita = input("Data di nascita nel formato dd-mm-yyyy:\n")
+        data_iscrizione = input("Data di iscrizione nel formato dd-mm-yyyy:\n")
 
         cursor.execute(query_inserisci_utente, (nome, cognome, data_nascita, data_iscrizione))
         conn.commit()
         print("Utente registrato")
-
-
 
     except (Exception, jaydebeapi.Error) as error:
         print("Errore durante l'inserimento del record:", error)
@@ -176,53 +175,63 @@ def inserisci_utente():
 
 def inserisci_prestito():
     try:
-
-        # SELECT dell'utente con codice_utente, SELECT della copia con cod_cat
-
+        val = None
         query_inserimento_prestito = ("INSERT INTO prestito (codice_utente, codice_catalogazione, data_prestito, "
-                                      ") VALUES (?, ?, ?)")
+                                      "data_restituzione, durata_prestito) VALUES (?, ?, ?, NULL, NULL)")
+
+        # viene chiesto il codice dell'utente
+
         codice_utente = input("Inserisci il codice dell'utente che deve noleggiare una copia:\n")
         codice_utente = int(codice_utente)
-        query_codice_utente = ("SELECT codice_utente FROM utente WHERE codice_utente = ?")
+        query_codice_utente = "SELECT codice_utente FROM utente WHERE codice_utente = ?"
         cursor.execute(query_codice_utente, (codice_utente,))
-        cursor.fetchone()
+        res = cursor.fetchone()
+        if res is None:
+            print("Utente non trovato.")
+            return
+
+        # viene chiesto il codice di catalogazione della copia
 
         codice_catalogazione = input("Inserisci il codice di catalogazione della copia di riferimento:\n")
         codice_catalogazione = int(codice_catalogazione)
-        query_codice_copia = ("SELECT isbn FROM copia WHERE codice_catalogazione = ?")
+        query_codice_copia = "SELECT codice_catalogazione FROM copia WHERE codice_catalogazione = ?"
         cursor.execute(query_codice_copia, (codice_catalogazione,))
-        cursor.fetchone()
+        res = cursor.fetchone()
+        if res is None:
+            print("Copia non trovata.")
+            return
+
+        # viene chiesta la data di inizio del prestito
 
         data_prestito = input("Inserisci la data dell'inizio del prestito nel formato dd-mm-yyyy:\n")
 
-        # TO-DO
-        #
-        # lo stato della copia viene aggiornato
-        query_data_restituzione = ("SELECT data_restituzione FROM prestito WHERE codice_catalogazione = ?")
-        cursor.execute(query_data_restituzione, (codice_catalogazione,))
-        data_restituzione = query_data_restituzione
-
-        update_stato_copia(codice_catalogazione, data_restituzione)
         cursor.execute(query_inserimento_prestito, (codice_utente, codice_catalogazione, data_prestito,))
-        conn.commit()
+
         print("Prestito creato")
+
+        update_stato_copia(int(codice_catalogazione))
+        conn.commit()
+        print("metodo concluso (inserisci prestico, update copia)")
     except (Exception, jaydebeapi.Error) as error:
         print("Errore durante l'inserimento del record:", error)
 
 
-def update_stato_copia(codice_catalogazione, data_restituzione):
+def update_stato_copia(codice_catalogazione):
     try:
-        query_stato_disponibile = ("UPDATE copia SET stato = Disponibile WHERE codice_catalogazione = ?")
-        query_stato_non_disponibile = ("UPDATE copia SET stato = Non Disponibile WHERE codice_catalogazione = ?")
-        query_update_durata_prestito = ("UPDATE copia SET durata_prestito = ? WHERE codice_catalogazione = ?")
-        query_inizio_prestito = ("SELECT data_prestito FROM prestito WHERE codice_catalogazione = ? ")
+        query_stato_disponibile = "UPDATE copia SET stato = 'Disponibile' WHERE codice_catalogazione = ?"
+        query_stato_non_disponibile = "UPDATE copia SET stato = 'Non Disponibile' WHERE codice_catalogazione = ?"
+        query_update_durata_prestito = "UPDATE copia SET durata_prestito = ? WHERE codice_catalogazione = ?"
+        query_inizio_prestito = "SELECT data_prestito FROM prestito WHERE codice_catalogazione = ? "
         data_inizio = cursor.execute(query_inizio_prestito)
 
+        query_data_restituzione = "SELECT data_restituzione FROM prestito WHERE codice_catalogazione = ?"
+        data_restituzione = cursor.execute(query_data_restituzione, (codice_catalogazione,))
         # TO-DO
         # viene modificato lo stato di una copia in seguito all'inizio o la fine di un noleggio
         # questo metodo verrà poi chiamato nel metodo inserisci_prestito
 
-        # calcolare la durata del prestito: estrapolare le date, sottrarle (py) e inserire il valore in durata (sql) in giorni
+        # calcolare la durata del prestito: estrapolare le date, sottrarle (py) e inserire il valore in durata (sql)
+        # in giorni
 
         regex_fine = re.search(r'\d{2}-\d{2}-\d{4}', data_restituzione)
         data_restituzione = datetime.strptime(regex_fine.group(), '%d-%m-%y').date()
@@ -232,12 +241,11 @@ def update_stato_copia(codice_catalogazione, data_restituzione):
 
         durata_prestito = (data_restituzione - data_inizio).days
 
-        if data_restituzione == '':
+        if data_restituzione is None:
             cursor.execute(query_stato_non_disponibile, (codice_catalogazione, data_restituzione))
         elif data_restituzione:
             cursor.execute(query_stato_disponibile, (codice_catalogazione, data_restituzione))
             cursor.execute(query_update_durata_prestito, (durata_prestito, codice_catalogazione))
-
 
         conn.commit()
         print("Copia aggiornata")
@@ -245,9 +253,11 @@ def update_stato_copia(codice_catalogazione, data_restituzione):
         print("Errore durante l'inserimento del record:", error)
 
 
+#def restituisci_copia(): necessario codice_prestito, si aggiunge data restituzione, si aggiorna stato della copia ( torna disponibile)
+
 def inserisci_genere():
     try:
-        query_inserisci_genere = ("INSERT INTO genere (codice_genere, nome_genere) VALUES (?, ?)")
+        query_inserisci_genere = "INSERT INTO genere (codice_genere, nome_genere) VALUES (?, ?)"
         nome_genere = input("Inserisci il nome del genere:")
         cursor.execute(query_inserisci_genere, (nome_genere))
         codice_genere = cursor.fetchone()[0]  # se dovesse servire
