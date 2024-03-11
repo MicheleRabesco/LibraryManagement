@@ -1,5 +1,5 @@
-import jaydebeapi, re
-from datetime import datetime
+import jaydebeapi, re, traceback
+from datetime import datetime, date
 
 try:
 
@@ -63,7 +63,7 @@ class Prestito:
 
 
 class Genere:
-    def __init__(self, codice_genere=None, nome_genere=None):
+    def __init__(self, codice_genere, nome_genere):
         self.codice_genere = codice_genere
         self.nome_genere = nome_genere
 
@@ -75,9 +75,9 @@ class Appartenenza:
 
 
 class Scrittura:
-    def __init__(self, codice_libro, codice_autore):
-        self.codice_libro = codice_libro
+    def __init__(self, codice_autore, codice_libro):
         self.codice_autore = codice_autore
+        self.codice_libro = codice_libro
 
 
 class Edizione:
@@ -104,6 +104,10 @@ def inserisci_autore():
     except (Exception, jaydebeapi.Error) as error:
         print("Errore durante l'inserimento del record:", error)
 
+    ricerca_codice_query = "SELECT codice_autore FROM autore"
+    codice_autore = cursor.execute(ricerca_codice_query)
+    return codice_autore
+
 
 def inserisci_libro():
     try:
@@ -116,18 +120,33 @@ def inserisci_libro():
             titolo.strip(), int(numero_copie.strip())))
         codice_libro = cursor.fetchone()[0]
 
-        query_associa_libro_autore = "INSERT INTO scrittura (codice_libro, codice_autore) VALUES (?, ?)"
-        print("Associa ora il libro all'autore.\n Inserisci il nome e il cognome, uno alla volta.\n")
-        nome = input("Nome: ")
-        cognome = input("Cognome: ")
-        query_codice_autore = "SELECT codice_autore FROM autore WHERE nome = ? AND cognome = ?"
+        query_associa_libro_autore = "INSERT INTO scrittura (codice_autore, codice_libro) VALUES (?, ?)"
+        query_mostra_autori = "SELECT * FROM autore ORDER BY codice_autore ASC"
+        cursor.execute(query_mostra_autori)
+        print("Associa ora il libro all'autore.\n")
+        print("Ecco la lista degli autori inseriti:")
+        lista_autori = cursor.fetchone()
+        while lista_autori is not None:
+            print(lista_autori)
+            lista_autori = cursor.fetchone()
 
-        cursor.execute(query_codice_autore, (nome, cognome))
-        codice_autore = cursor.fetchone()[0]
+        codice_autore = input(
+            "L'autore è presente nella lista? Se sì scrivi il codice a lui associato\naltrimenti scrivi 0 per "
+            "inserire un nuovo autore\n")
+        query_codice_autore = "SELECT * FROM autore"
+        cursor.execute(query_codice_autore)
+        codice_autore = int(codice_autore)
+        if codice_autore != 0:
+            cursor.execute(query_associa_libro_autore, (codice_autore, codice_libro,))
+        else:
+            print("Autore non esistente.\n")
+            inserisci_autore()
+            cursor.execute("SELECT LASTVAL()")
+            codice_autore = cursor.fetchone()[0]
+            cursor.execute(query_associa_libro_autore, (codice_autore, codice_libro))
 
-        cursor.execute(query_associa_libro_autore, (codice_libro, codice_autore,))
         conn.commit()
-        print("Valore Inserito")
+        print("Libro inserito, autore associato, tabella scrittura aggiornata")
     except (Exception, jaydebeapi.Error) as error:
         print("Errore durante l'inserimento del record:", error)
     return codice_libro
@@ -207,68 +226,98 @@ def inserisci_prestito():
 
         cursor.execute(query_inserimento_prestito, (codice_utente, codice_catalogazione, data_prestito,))
 
-        print("Prestito creato")
+        print("Prestito creato.")
 
         update_stato_copia(int(codice_catalogazione))
         conn.commit()
-        print("metodo concluso (inserisci prestico, update copia)")
+        print("Prestito inserito.")
     except (Exception, jaydebeapi.Error) as error:
         print("Errore durante l'inserimento del record:", error)
 
 
 def update_stato_copia(codice_catalogazione):
     try:
-        query_stato_disponibile = "UPDATE copia SET stato = 'Disponibile' WHERE codice_catalogazione = ?"
-        query_stato_non_disponibile = "UPDATE copia SET stato = 'Non Disponibile' WHERE codice_catalogazione = ?"
-        query_update_durata_prestito = "UPDATE copia SET durata_prestito = ? WHERE codice_catalogazione = ?"
-        query_inizio_prestito = "SELECT data_prestito FROM prestito WHERE codice_catalogazione = ? "
-        data_inizio = cursor.execute(query_inizio_prestito)
+        # Seleziona la data di inizio e di restituzione del prestito per la copia specificata
+        query_prestito = "SELECT data_prestito, data_restituzione FROM prestito WHERE codice_catalogazione = ?"
+        cursor.execute(query_prestito, (codice_catalogazione,))
+        prestito = cursor.fetchone()
 
-        query_data_restituzione = "SELECT data_restituzione FROM prestito WHERE codice_catalogazione = ?"
-        data_restituzione = cursor.execute(query_data_restituzione, (codice_catalogazione,))
-        # TO-DO
-        # viene modificato lo stato di una copia in seguito all'inizio o la fine di un noleggio
-        # questo metodo verrà poi chiamato nel metodo inserisci_prestito
+        if prestito:
+            data_inizio, data_restituzione = prestito
 
-        # calcolare la durata del prestito: estrapolare le date, sottrarle (py) e inserire il valore in durata (sql)
-        # in giorni
+            # Calcola la durata del prestito
+            if data_inizio and data_restituzione:
+                data_inizio = datetime.strptime(data_inizio, "%d-%m-%Y").date()
+                data_restituzione = datetime.strptime(data_restituzione, "%d-%m-%Y").date()
+                durata_prestito = (data_restituzione - data_inizio).days
 
-        regex_fine = re.search(r'\d{2}-\d{2}-\d{4}', data_restituzione)
-        data_restituzione = datetime.strptime(regex_fine.group(), '%d-%m-%y').date()
+                # Aggiorna lo stato della copia in base alla presenza della data di restituzione
+                if data_restituzione:
+                    query_stato_disponibile = "UPDATE copia SET stato = 'Disponibile' WHERE codice_catalogazione = ?"
+                    cursor.execute(query_stato_disponibile, (codice_catalogazione,))
+                else:
+                    query_stato_non_disponibile = "UPDATE copia SET stato = 'Non Disponibile' WHERE codice_catalogazione = ?"
+                    cursor.execute(query_stato_non_disponibile, (codice_catalogazione,))
 
-        regex_inizio = re.search(r'\d{2}-\d{2}-\d{4}', data_inizio)
-        data_inizio = datetime.strptime(regex_inizio.group(), '%d-%m-%y').date()
+                # Aggiorna la durata del prestito nella tabella prestito
+                query_update_durata_prestito = "UPDATE prestito SET durata_prestito = ? WHERE codice_catalogazione = ?"
+                cursor.execute(query_update_durata_prestito, (durata_prestito, codice_catalogazione))
 
-        durata_prestito = (data_restituzione - data_inizio).days
-
-        if data_restituzione is None:
-            cursor.execute(query_stato_non_disponibile, (codice_catalogazione, data_restituzione))
-        elif data_restituzione:
-            cursor.execute(query_stato_disponibile, (codice_catalogazione, data_restituzione))
-            cursor.execute(query_update_durata_prestito, (durata_prestito, codice_catalogazione))
-
-        conn.commit()
-        print("Copia aggiornata")
+                conn.commit()
+                print("Stato della copia aggiornato con successo.")
+            else:
+                # Se esiste un prestito valido (con data di inizio), imposta lo stato della copia a "Non Disponibile"
+                query_stato_non_disponibile = "UPDATE copia SET stato = 'Non Disponibile' WHERE codice_catalogazione = ?"
+                cursor.execute(query_stato_non_disponibile, (codice_catalogazione,))
+                conn.commit()
+                print("Stato della copia aggiornato con successo.")
+        else:
+            print("Nessun prestito trovato per la copia specificata.")
     except (Exception, jaydebeapi.Error) as error:
-        print("Errore durante l'inserimento del record:", error)
+        print("Errore durante l'aggiornamento dello stato della copia:", error)
 
 
-#def restituisci_copia(): necessario codice_prestito, si aggiunge data restituzione, si aggiorna stato della copia ( torna disponibile)
+
+# def restituisci_copia(): necessario codice_prestito, si aggiunge data restituzione, si aggiorna stato della copia ( torna disponibile)
+def restituisci_copia():
+    try:
+        codice_prestito = input("Inserisci il codice prestito da restituire")
+        codice_prestito = int(codice_prestito)
+        query_seleziona_prestito = "SELECT * FROM prestito WHERE codice_prestito = ?"
+        cursor.execute(query_seleziona_prestito, (codice_prestito,))
+        prestito = cursor.fetchone()
+
+        if prestito:
+            data_restituzione = datetime.now().strftime("%d-%m-%Y")
+            query_aggiorna_data_restituzione = "UPDATE prestito SET data_restituzione = ? WHERE codice_prestito = ?"
+            cursor.execute(query_aggiorna_data_restituzione, (data_restituzione, codice_prestito))
+            codice_catalogazione = prestito[1]
+
+            update_stato_copia(codice_catalogazione)
+            print("Copia restituita con successo.")
+            conn.commit()
+        else:
+            print("Il codice prestito specificato non esiste.")
+    except (Exception, jaydebeapi.Error) as error:
+        print("Errore durante l'operazione di restituzione della copia:", error)
+
 
 def inserisci_genere():
     try:
-        query_inserisci_genere = "INSERT INTO genere (codice_genere, nome_genere) VALUES (?, ?)"
-        nome_genere = input("Inserisci il nome del genere:")
-        cursor.execute(query_inserisci_genere, (nome_genere))
-        codice_genere = cursor.fetchone()[0]  # se dovesse servire
-
+        query_inserisci_genere = "INSERT INTO genere (nome_genere) VALUES (?)"
+        nome_genere = input("Inserisci il nome del genere: ")
+        cursor.execute(query_inserisci_genere, [nome_genere])
+        conn.commit()
+        print("Genere inserito")
     except (Exception, jaydebeapi.Error) as error:
         print("Errore durante l'inserimento del record:", error)
 
 
 """
+
 def definisci_appartenenza_genere():
     try:
+
 
 
     except (Exception, jaydebeapi.Error) as error:
@@ -280,7 +329,7 @@ def main():
     while True:
         prompt = input("Che azione vuoi eseguire?\nDigita:\n1. per inserire un autore\n2. per inserire un libro\n3. "
                        "per inserire una copia\n4. per inserire un utente\n5. per inserire un prestito\n6. per "
-                       "inserire un genere\n"
+                       "inserire un genere\n7. per restituire una copia\n"
                        "0 per uscire\n")
 
         if prompt == '1':
@@ -295,6 +344,8 @@ def main():
             inserisci_prestito()
         elif prompt == '6':
             inserisci_genere()
+        elif prompt == '7':
+            restituisci_copia()
         elif prompt == '0':
             exit(0)
         else:
