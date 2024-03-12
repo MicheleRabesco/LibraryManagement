@@ -1,5 +1,5 @@
-import jaydebeapi, re, traceback
-from datetime import datetime, date
+import jaydebeapi
+from datetime import datetime
 
 try:
 
@@ -69,9 +69,9 @@ class Genere:
 
 
 class Appartenenza:
-    def __init__(self, codice_genere=None, codice_autore=None):
+    def __init__(self, codice_genere=None, codice_libro=None):
         self.codice_genere = codice_genere
-        self.codice_autore = codice_autore
+        self.codice_libro = codice_libro
 
 
 class Scrittura:
@@ -89,6 +89,7 @@ class Edizione:
 
 def inserisci_autore():
     try:
+
         query_inserisci_autore = ("INSERT INTO autore (nome, cognome, data_nascita, data_morte)"
                                   "VALUES (?, ?, ?, ?)")
         print("Inserisci i dati dell'autore: le date devono essere in formato dd/mm/yyyy\n")
@@ -96,6 +97,8 @@ def inserisci_autore():
         cognome_autore = input("Cognome: ")
         data_nascita_autore = input("Data di nascita: ")
         data_morte_autore = input("Data di morte: ")
+        if data_morte_autore is None: data_morte_autore = '[NULL]'
+        # if nome_autore, cognome_autore, data_nascita_autore, data_morte_autore: print("L'autore è già presente")
         cursor.execute(query_inserisci_autore, (
             nome_autore.strip(), cognome_autore.strip(), data_nascita_autore.strip(),
             data_morte_autore.strip()))
@@ -111,13 +114,11 @@ def inserisci_autore():
 
 def inserisci_libro():
     try:
-        query_inserisci_libro = ("INSERT INTO libro (titolo, numero_copie) "
-                                 "VALUES (?, ?) RETURNING codice_libro")
+        query_inserisci_libro = ("INSERT INTO libro (titolo) "
+                                 "VALUES (?) RETURNING codice_libro")
         print("Inserisci i dati del libro: titolo, numero di copie\n")
         titolo = input("Titolo: ")
-        numero_copie = input("Numero di copie: ")
-        cursor.execute(query_inserisci_libro, (
-            titolo.strip(), int(numero_copie.strip())))
+        cursor.execute(query_inserisci_libro, (titolo.strip(),))
         codice_libro = cursor.fetchone()[0]
 
         query_associa_libro_autore = "INSERT INTO scrittura (codice_autore, codice_libro) VALUES (?, ?)"
@@ -145,6 +146,30 @@ def inserisci_libro():
             codice_autore = cursor.fetchone()[0]
             cursor.execute(query_associa_libro_autore, (codice_autore, codice_libro))
 
+        query_associa_libro_genere = "INSERT INTO appartenenza (codice_genere, codice_libro) VALUES (?, ?)"
+        query_mostra_generi = "SELECT * FROM genere ORDER BY codice_genere ASC"
+        cursor.execute(query_mostra_generi)
+        print("Associa ora il libro al proprio genere:\n")
+        lista_generi = cursor.fetchone()
+        while lista_generi is not None:
+            print(lista_generi)
+            lista_generi = cursor.fetchone()
+
+        codice_genere = input(
+            "Il genere è presente nella lista? Se sì scrivi il codice a lui associato\naltrimenti scrivi 0 per "
+            "inserire un nuovo genere\n")
+        query_codice_genere = "SELECT * FROM genere"
+        cursor.execute(query_codice_genere)
+        codice_genere = int(codice_genere)
+        if codice_genere != 0:
+            cursor.execute(query_associa_libro_genere, (codice_genere, codice_libro,))
+        else:
+            print("Genere non esistente.\n")
+            inserisci_genere()
+            cursor.execute("SELECT LASTVAL()")
+            codice_genere = cursor.fetchone()[0]
+            cursor.execute(query_associa_libro_genere, (codice_genere, codice_libro))
+
         conn.commit()
         print("Libro inserito, autore associato, tabella scrittura aggiornata")
     except (Exception, jaydebeapi.Error) as error:
@@ -168,6 +193,11 @@ def inserisci_copia():
         cursor.execute(query_inserisci_copia, (stato.strip(), isbn.strip(), codice_libro))
         query_aggiornamento_copie = "UPDATE libro SET numero_copie = numero_copie +1 WHERE codice_libro = ?"
         cursor.execute(query_aggiornamento_copie, (codice_libro,))
+
+        update_copie_libro = ("UPDATE libro SET numero_copie = (SELECT COUNT (codice_libro) FROM copia WHERE "
+                              "codice_libro = ?) WHERE codice_libro = ?")
+        cursor.execute(update_copie_libro, (codice_libro, codice_libro))
+
         conn.commit()
         print("Valore Inserito")
     except (Exception, jaydebeapi.Error) as error:
@@ -194,12 +224,10 @@ def inserisci_utente():
 
 def inserisci_prestito():
     try:
-        val = None
         query_inserimento_prestito = ("INSERT INTO prestito (codice_utente, codice_catalogazione, data_prestito, "
                                       "data_restituzione, durata_prestito) VALUES (?, ?, ?, NULL, NULL)")
 
         # viene chiesto il codice dell'utente
-
         codice_utente = input("Inserisci il codice dell'utente che deve noleggiare una copia:\n")
         codice_utente = int(codice_utente)
         query_codice_utente = "SELECT codice_utente FROM utente WHERE codice_utente = ?"
@@ -256,7 +284,8 @@ def update_stato_copia(codice_catalogazione):
                     query_stato_disponibile = "UPDATE copia SET stato = 'Disponibile' WHERE codice_catalogazione = ?"
                     cursor.execute(query_stato_disponibile, (codice_catalogazione,))
                 else:
-                    query_stato_non_disponibile = "UPDATE copia SET stato = 'Non Disponibile' WHERE codice_catalogazione = ?"
+                    query_stato_non_disponibile = ("UPDATE copia SET stato = 'Non Disponibile' WHERE "
+                                                   "codice_catalogazione = ?")
                     cursor.execute(query_stato_non_disponibile, (codice_catalogazione,))
 
                 # Aggiorna la durata del prestito nella tabella prestito
@@ -267,7 +296,8 @@ def update_stato_copia(codice_catalogazione):
                 print("Stato della copia aggiornato con successo.")
             else:
                 # Se esiste un prestito valido (con data di inizio), imposta lo stato della copia a "Non Disponibile"
-                query_stato_non_disponibile = "UPDATE copia SET stato = 'Non Disponibile' WHERE codice_catalogazione = ?"
+                query_stato_non_disponibile = ("UPDATE copia SET stato = 'Non Disponibile' WHERE codice_catalogazione "
+                                               "= ?")
                 cursor.execute(query_stato_non_disponibile, (codice_catalogazione,))
                 conn.commit()
                 print("Stato della copia aggiornato con successo.")
@@ -275,7 +305,6 @@ def update_stato_copia(codice_catalogazione):
             print("Nessun prestito trovato per la copia specificata.")
     except (Exception, jaydebeapi.Error) as error:
         print("Errore durante l'aggiornamento dello stato della copia:", error)
-
 
 
 # def restituisci_copia(): necessario codice_prestito, si aggiunge data restituzione, si aggiorna stato della copia ( torna disponibile)
@@ -304,26 +333,29 @@ def restituisci_copia():
 
 def inserisci_genere():
     try:
-        query_inserisci_genere = "INSERT INTO genere (nome_genere) VALUES (?)"
+        query_verifica_genere = "SELECT COUNT(*) FROM genere WHERE nome_genere = ?"
         nome_genere = input("Inserisci il nome del genere: ")
-        cursor.execute(query_inserisci_genere, [nome_genere])
-        conn.commit()
-        print("Genere inserito")
+
+        cursor.execute(query_verifica_genere, [nome_genere])
+        result = cursor.fetchone()
+
+        if result[0] > 0:
+            print("Il genere esiste già nel database.")
+        else:
+            query_inserisci_genere = "INSERT INTO genere (nome_genere) VALUES (?)"
+            cursor.execute(query_inserisci_genere, [nome_genere])
+            conn.commit()
+            print("Genere inserito")
     except (Exception, jaydebeapi.Error) as error:
         print("Errore durante l'inserimento del record:", error)
 
-
 """
-
-def definisci_appartenenza_genere():
+def inserisci_edizione:
     try:
-
-
-
+        
     except (Exception, jaydebeapi.Error) as error:
         print("Errore durante l'inserimento del record:", error)
 """
-
 
 def main():
     while True:
