@@ -116,8 +116,7 @@ def inserisci_libro():
     try:
         query_inserisci_libro = ("INSERT INTO libro (titolo) "
                                  "VALUES (?) RETURNING codice_libro")
-        print("Inserisci i dati del libro: titolo, numero di copie\n")
-        titolo = input("Titolo: ")
+        titolo = input("Inserisci il titolo del libro: ")
         cursor.execute(query_inserisci_libro, (titolo.strip(),))
         codice_libro = cursor.fetchone()[0]
 
@@ -197,11 +196,13 @@ def inserisci_copia():
         update_copie_libro = ("UPDATE libro SET numero_copie = (SELECT COUNT (codice_libro) FROM copia WHERE "
                               "codice_libro = ?) WHERE codice_libro = ?")
         cursor.execute(update_copie_libro, (codice_libro, codice_libro))
-
+        inserisci_edizione(isbn)
         conn.commit()
         print("Valore Inserito")
     except (Exception, jaydebeapi.Error) as error:
         print("Errore durante l'inserimento del record:", error)
+
+    return isbn
 
 
 def inserisci_utente():
@@ -349,13 +350,20 @@ def inserisci_genere():
     except (Exception, jaydebeapi.Error) as error:
         print("Errore durante l'inserimento del record:", error)
 
-"""
-def inserisci_edizione:
+
+
+def inserisci_edizione(isbn):
     try:
-        
+        query_inserisci_edizione = "INSERT INTO edizione (isbn, anno_stampa, edizione) VALUES (?, ?, ?)"
+        anno_stampa = input("Inserisci l'anno di stampa: ")
+        edizione = input("Inserisci il numero dell'edizione: ")
+        edizione = int(edizione)
+        cursor.execute(query_inserisci_edizione, (isbn, anno_stampa, edizione))
+        conn.commit()
     except (Exception, jaydebeapi.Error) as error:
         print("Errore durante l'inserimento del record:", error)
-"""
+
+
 
 def main():
     while True:
