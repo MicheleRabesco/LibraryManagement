@@ -351,7 +351,6 @@ def inserisci_genere():
         print("Errore durante l'inserimento del record:", error)
 
 
-
 def inserisci_edizione(isbn):
     try:
         query_inserisci_edizione = "INSERT INTO edizione (isbn, anno_stampa, edizione) VALUES (?, ?, ?)"
@@ -362,7 +361,6 @@ def inserisci_edizione(isbn):
         conn.commit()
     except (Exception, jaydebeapi.Error) as error:
         print("Errore durante l'inserimento del record:", error)
-
 
 
 def main():
