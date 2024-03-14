@@ -1,5 +1,12 @@
+import json
+
 import jaydebeapi
 from datetime import datetime
+
+import requests
+from flask import Flask
+
+app = Flask(__name__)
 
 try:
 
@@ -89,7 +96,7 @@ class Edizione:
 
 def inserisci_autore():
     try:
-
+        codice_libro = None
         query_inserisci_autore = ("INSERT INTO autore (nome, cognome, data_nascita, data_morte)"
                                   "VALUES (?, ?, ?, ?)")
         print("Inserisci i dati dell'autore: le date devono essere in formato dd/mm/yyyy\n")
@@ -112,12 +119,24 @@ def inserisci_autore():
     return codice_autore
 
 
+@app.post("/inserisci_libro")
 def inserisci_libro():
     try:
+        codice_libro = None
+        url = "http://localhost:5000/inserisci_libro"
         query_inserisci_libro = ("INSERT INTO libro (titolo) "
-                                 "VALUES (?) RETURNING codice_libro")
-        titolo = input("Inserisci il titolo del libro: ")
-        cursor.execute(query_inserisci_libro, (titolo.strip(),))
+                                 "VALUES (?) ")
+        # titolo = input("Inserisci il titolo del libro: ")
+        payload = json.dumps({
+            "titolo": "Inviato da postman"
+        })
+        headers = {'Content-Type': 'application/json', 'Accept': 'text/plain'}
+
+        response = requests.request(url, headers=headers, data=payload)
+        print(response.text)
+        cursor.execute(query_inserisci_libro, (payload,))
+        print(payload)
+
         codice_libro = cursor.fetchone()[0]
 
         query_associa_libro_autore = "INSERT INTO scrittura (codice_autore, codice_libro) VALUES (?, ?)"
@@ -173,7 +192,9 @@ def inserisci_libro():
         print("Libro inserito, autore associato, tabella scrittura aggiornata")
     except (Exception, jaydebeapi.Error) as error:
         print("Errore durante l'inserimento del record:", error)
-    return codice_libro
+    return {"message": "Inserimento del libro completato"}
+
+    #return codice_libro
 
 
 def inserisci_copia():
@@ -363,6 +384,21 @@ def inserisci_edizione(isbn):
         print("Errore durante l'inserimento del record:", error)
 
 
+@app.get("/mostra_libri")
+def mostra_libri():
+    try:
+        query_mostra_libri = "SELECT * from libro"
+        cursor.execute(query_mostra_libri)
+        desc = cursor.description
+        colonne = [col[0] for col in desc]
+        data = [dict(zip(colonne, row))
+                for row in cursor.fetchall()]
+        res = json.dumps(data, indent=2)
+        return res
+    except (Exception, jaydebeapi.Error) as error:
+        print("Errore durante l'inserimento del record:", error)
+
+
 def main():
     while True:
         prompt = input("Che azione vuoi eseguire?\nDigita:\n1. per inserire un autore\n2. per inserire un libro\n3. "
@@ -384,6 +420,8 @@ def main():
             inserisci_genere()
         elif prompt == '7':
             restituisci_copia()
+        elif prompt == '8':
+            mostra_libri()
         elif prompt == '0':
             exit(0)
         else:
