@@ -3,8 +3,7 @@ import json
 import jaydebeapi
 from datetime import datetime
 
-import requests
-from flask import Flask
+from flask import Flask, request
 
 app = Flask(__name__)
 
@@ -19,6 +18,7 @@ try:
     conn.jconn.setAutoCommit(False)
     cursor = conn.cursor()
     print("Connessione effettuata")
+
 except Exception as e:
     print("Errore durante la connessione al database:", e)
 
@@ -96,7 +96,7 @@ class Edizione:
 
 def inserisci_autore():
     try:
-        codice_libro = None
+
         query_inserisci_autore = ("INSERT INTO autore (nome, cognome, data_nascita, data_morte)"
                                   "VALUES (?, ?, ?, ?)")
         print("Inserisci i dati dell'autore: le date devono essere in formato dd/mm/yyyy\n")
@@ -119,23 +119,14 @@ def inserisci_autore():
     return codice_autore
 
 
-@app.post("/inserisci_libro")
+
+
 def inserisci_libro():
     try:
-        codice_libro = None
-        url = "http://localhost:5000/inserisci_libro"
         query_inserisci_libro = ("INSERT INTO libro (titolo) "
                                  "VALUES (?) ")
-        # titolo = input("Inserisci il titolo del libro: ")
-        payload = json.dumps({
-            "titolo": "Inviato da postman"
-        })
-        headers = {'Content-Type': 'application/json', 'Accept': 'text/plain'}
-
-        response = requests.request(url, headers=headers, data=payload)
-        print(response.text)
-        cursor.execute(query_inserisci_libro, (payload,))
-        print(payload)
+        titolo = input("Inserisci il titolo del libro: ")
+        cursor.execute(query_inserisci_libro, (titolo,))
 
         codice_libro = cursor.fetchone()[0]
 
@@ -430,3 +421,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
